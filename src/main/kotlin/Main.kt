@@ -14,7 +14,6 @@ import java.io.IOException
 import java.time.Duration
 import kotlin.system.exitProcess
 
-
 fun main() = runBlocking<Unit> {
 
     println("Let's start!")
@@ -61,7 +60,7 @@ fun main() = runBlocking<Unit> {
 
     var openAiAuthToken = System.getenv("OPEN_AI_AUTH_TOKEN")
     if (openAiAuthToken.isNullOrBlank()) {
-        println("OpenAI Authentication token not found for environment variable OPEN_AI_AUTH_TOKEN. Please enter a valid token")
+        println("OpenAI Authentication token not found for environment variable OPEN_AI_AUTH_TOKEN. Please enter a valid token:")
         openAiAuthToken = readln().trim()
     }
     if (openAiAuthToken.isBlank()) {
@@ -86,7 +85,9 @@ fun main() = runBlocking<Unit> {
 }
 
 private fun requestTranslation(content: String, targetLanguage: String, apiKey: String): String? {
-    val prompt = "Translate the following XML content into $targetLanguage:\n$content"
+    val prompt = "Translate the following strings.xml file of an Android App into language: $targetLanguage. " +
+            "\nKeep the original value for elements with attribute 'translatable=\"false\"'." +
+            " \n$content"
 
     val body = jacksonObjectMapper().writeValueAsString(
         GptRequest(

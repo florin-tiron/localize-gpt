@@ -1,0 +1,11 @@
+<resources>
+    <string name="app_name" translatable="false">Button Push Pro</string>
+    <string name="title">This is a title</string>
+    <string name="username">Username</string>
+    <string name="url">https://google.com</string>
+    <string name="description">Button Push Pro: Experience the thrill of pushing a virtual button! This elegantly
+        designed app transforms your Android device into a fun, interactive button. With each press, enjoy delightful
+        animations and satisfying sounds. Perfect for stress relief or simply to pass time, Button Push Pro is the
+        ultimate, minimalist entertainment.
+    </string>
+</resources>
