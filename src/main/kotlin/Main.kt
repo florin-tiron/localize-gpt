@@ -1,6 +1,7 @@
 package com.florintiron.localizegpt
 
 import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 
@@ -27,6 +28,7 @@ fun main() = runBlocking<Unit> {
     val defaultStringsFilePath = "$projectPath/app/src/main/res/values/strings.xml".also {
         println("Project default strings path: $it")
     }
+
     val uploadStringsFileContent: String
     try {
         uploadStringsFileContent = File(defaultStringsFilePath).readText()
@@ -36,11 +38,16 @@ fun main() = runBlocking<Unit> {
     }
 
     println(
-        "Supported locales:  ${languageMap.keys}" +
+        "\nSupported locales:  ${languageMap.keys}" +
                 "\nFor what locales (Language code) do you want localization?" +
-                "\nInput locale code separated by coma. Ex: ro, de-DE, fr-CA"
+                "\nInput locale code separated by coma. Ex: ro, de, fr" +
+                "\nLeave empty for default: $DEFAULT_LANGUAGE_CODES"
     )
-    val languageCodeInput = readln().trim()
+    var languageCodeInput = readln().trim()
+
+    if (languageCodeInput.isEmpty()){
+        languageCodeInput = DEFAULT_LANGUAGE_CODES
+    }
     var languageCodes = languageCodeInput.split(',')
 
     languageCodes
@@ -68,8 +75,12 @@ fun main() = runBlocking<Unit> {
         exitProcess(0)
     }
 
+    println("\n------------------------------------")
+    println("\n>>>START GENERATING TRANSLATIONS<<<")
+
     languageCodes.map { languageCode ->
-        launch {
+        launch(Dispatchers.IO) {
+            println("\n...")
             val translation =
                 requestTranslation(uploadStringsFileContent, languageMap[languageCode] ?: "", openAiAuthToken).run {
                     this?.let {
@@ -148,3 +159,4 @@ private val httpClient = OkHttpClient.Builder()
     .readTimeout(Duration.ofSeconds(60))
     .build()
 private lateinit var projectPath: String
+private const val DEFAULT_LANGUAGE_CODES = "de,fr,it,es,pt"
