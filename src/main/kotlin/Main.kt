@@ -1,5 +1,6 @@
 package com.florintiron.localizegpt
 
+import PersistentLocalCache
 import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -16,13 +17,24 @@ import java.time.Duration
 import kotlin.system.exitProcess
 
 fun main() = runBlocking<Unit> {
+    val cache = PersistentLocalCache(File("cache.dat"))
 
     println("Let's start!")
-    println("Input your project path or leave empty for current directory; Ex:/Users/johndoe/AndroidStudioProjects/MyAndroidProject")
+    println(
+        "\nInput your project path. (Ex:/Users/johndoe/AndroidStudioProjects/MyAndroidProject)" +
+                "\nLeave empty for current directory use" +
+                "\nInput 'C' for usage of cached path: ${cache.get(KEY_CACHED_PROJECT_PATH)}"
+    )
+
     projectPath = readln().trim()
 
-    if (projectPath.isEmpty()) {
-        projectPath = System.getProperty("user.dir")
+    projectPath = when {
+        projectPath.isEmpty() -> System.getProperty("user.dir")
+        projectPath.capitalize() == "C" -> cache.get(KEY_CACHED_PROJECT_PATH) ?: ""
+        else -> {
+            cache.put(KEY_CACHED_PROJECT_PATH, projectPath)
+            projectPath
+        }
     }
 
     val defaultStringsFilePath = "$projectPath/app/src/main/res/values/strings.xml".also {
@@ -41,26 +53,34 @@ fun main() = runBlocking<Unit> {
         "\nSupported locales:  ${languageMap.keys}" +
                 "\nFor what locales (Language code) do you want localization?" +
                 "\nInput locale code separated by coma. Ex: ro, de, fr" +
-                "\nLeave empty for default: $DEFAULT_LANGUAGE_CODES"
+                "\nLeave empty for default: $DEFAULT_LANGUAGE_CODES" +
+                "\nInput 'C' for usage of cached languages: ${cache.get(KEY_CACHED_TRANSLATE_LANGUAGES)}"
     )
+
     var languageCodeInput = readln().trim()
 
-    if (languageCodeInput.isEmpty()){
-        languageCodeInput = DEFAULT_LANGUAGE_CODES
+    languageCodeInput = when {
+        languageCodeInput.isEmpty() -> DEFAULT_LANGUAGE_CODES
+        languageCodeInput.capitalize() == "C" -> cache.get(KEY_CACHED_TRANSLATE_LANGUAGES) ?: ""
+        else -> {
+            cache.put(KEY_CACHED_TRANSLATE_LANGUAGES, languageCodeInput)
+            languageCodeInput
+        }
     }
-    var languageCodes = languageCodeInput.split(',')
 
-    languageCodes
+    var languageCodeArray = languageCodeInput.split(',')
+
+    languageCodeArray
         .map { it.trim() }
         .partition { it in languageMap.keys }
         .let {
-            languageCodes = it.first
+            languageCodeArray = it.first
             if (it.second.isNotEmpty()) {
                 println("The following input language codes are not valid: ${it.second}")
             }
         }
 
-    if (languageCodes.isEmpty()) {
+    if (languageCodeArray.isEmpty()) {
         println("Please input at least a valid language code")
         exitProcess(0)
     }
@@ -78,7 +98,7 @@ fun main() = runBlocking<Unit> {
     println("\n------------------------------------")
     println("\n>>>START GENERATING TRANSLATIONS<<<")
 
-    languageCodes.map { languageCode ->
+    languageCodeArray.map { languageCode ->
         launch(Dispatchers.IO) {
             println("\n...")
             val translation =
@@ -160,3 +180,5 @@ private val httpClient = OkHttpClient.Builder()
     .build()
 private lateinit var projectPath: String
 private const val DEFAULT_LANGUAGE_CODES = "de,fr,it,es,pt"
+private const val KEY_CACHED_PROJECT_PATH = "PROJECT_PATH_KEY"
+private const val KEY_CACHED_TRANSLATE_LANGUAGES = "TRANSLATE_LANGUAGES_KEY"
