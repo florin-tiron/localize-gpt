@@ -1,6 +1,7 @@
 package com.florintiron.localizegpt
 
 import PersistentLocalCache
+import com.fasterxml.jackson.databind.DeserializationFeature
 import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -14,6 +15,7 @@ import java.io.File
 import java.io.FileNotFoundException
 import java.io.IOException
 import java.time.Duration
+import kotlin.also
 import kotlin.system.exitProcess
 
 fun main() = runBlocking<Unit> {
@@ -37,7 +39,7 @@ fun main() = runBlocking<Unit> {
         }
     }
 
-    val defaultStringsFilePath = "$projectPath/app/src/main/res/values/strings.xml".also {
+    val defaultStringsFilePath = "$projectPath/src/main/res/values/strings.xml".also {
         println("Project default strings path: $it")
     }
 
@@ -150,7 +152,12 @@ private fun requestTranslation(content: String, targetLanguage: String, apiKey: 
 private fun parseTranslation(response: String): String? {
     var parsedResponse: String? = null
     try {
-        val responseMapped = jacksonObjectMapper().readValue(response, GptResponse::class.java)
+        println("Response: $response")
+        val configure = jacksonObjectMapper().configure(
+            DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES,
+            false
+        )
+        val responseMapped = configure.readValue(response, GptResponse::class.java)
         parsedResponse = responseMapped.choices[0].message.content
     } catch (e: Exception) {
         e.printStackTrace()
@@ -160,7 +167,7 @@ private fun parseTranslation(response: String): String? {
 }
 
 private fun writeTranslationToFile(languageCode: String, translationText: String) {
-    val filePath = "$projectPath/app/src/main/res/values-$languageCode/strings.xml"
+    val filePath = "$projectPath/src/main/res/values-$languageCode/strings.xml"
     val file = File(filePath)
 
     try {
