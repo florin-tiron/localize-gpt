@@ -6,7 +6,6 @@ import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
-
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
 import okhttp3.Request
@@ -15,7 +14,6 @@ import java.io.File
 import java.io.FileNotFoundException
 import java.io.IOException
 import java.time.Duration
-import kotlin.also
 import kotlin.system.exitProcess
 
 fun main() = runBlocking<Unit> {
@@ -23,32 +21,22 @@ fun main() = runBlocking<Unit> {
 
     println("Let's start!")
     println(
-        "\nInput your project path. (Ex:/Users/johndoe/AndroidStudioProjects/MyAndroidProject)" +
+        "\nInput your project path, separated by ;. (Ex:/Users/johndoe/AndroidStudioProjects/MyAndroidProject/app)" +
                 "\nLeave empty for current directory use" +
                 "\nInput 'C' for usage of cached path: ${cache.get(KEY_CACHED_PROJECT_PATH)}"
     )
 
-    projectPath = readln().trim()
+    projectPathList = readln().trim().split(";").toMutableList()
 
-    projectPath = when {
-        projectPath.isEmpty() -> System.getProperty("user.dir")
-        projectPath.capitalize() == "C" -> cache.get(KEY_CACHED_PROJECT_PATH) ?: ""
+    when {
+        projectPathList.isEmpty() -> projectPathList.add(System.getProperty("user.dir"))
+        projectPathList[0].capitalize() == "C" -> projectPathList =
+            cache.get(KEY_CACHED_PROJECT_PATH)?.split(";")?.toMutableList()
+                ?: emptyList<String>().toMutableList()
+
         else -> {
-            cache.put(KEY_CACHED_PROJECT_PATH, projectPath)
-            projectPath
+            cache.put(KEY_CACHED_PROJECT_PATH, projectPathList.joinToString(";"))
         }
-    }
-
-    val defaultStringsFilePath = "$projectPath/src/main/res/values/strings.xml".also {
-        println("Project default strings path: $it")
-    }
-
-    val uploadStringsFileContent: String
-    try {
-        uploadStringsFileContent = File(defaultStringsFilePath).readText()
-    } catch (e: FileNotFoundException) {
-        println("Please input a valid path. No strings.xml file found at $defaultStringsFilePath")
-        exitProcess(0)
     }
 
     println(
@@ -56,7 +44,11 @@ fun main() = runBlocking<Unit> {
                 "\nFor what locales (Language code) do you want localization?" +
                 "\nInput locale code separated by coma. Ex: ro, de, fr" +
                 "\nLeave empty for default: $DEFAULT_LANGUAGE_CODES" +
-                "\nInput 'C' for usage of cached languages: ${cache.get(KEY_CACHED_TRANSLATE_LANGUAGES)}"
+                "\nInput 'C' for usage of cached languages: ${
+                    cache.get(
+                        KEY_CACHED_TRANSLATE_LANGUAGES
+                    )
+                }"
     )
 
     var languageCodeInput = readln().trim()
@@ -100,27 +92,46 @@ fun main() = runBlocking<Unit> {
     println("\n------------------------------------")
     println("\n>>>START GENERATING TRANSLATIONS<<<")
 
-    languageCodeArray.map { languageCode ->
-        launch(Dispatchers.IO) {
-            println("\n...")
-            val translation =
-                requestTranslation(uploadStringsFileContent, languageMap[languageCode] ?: "", openAiAuthToken).run {
-                    this?.let {
-                        parseTranslation(this)
+    for (path in projectPathList) {
+        val defaultStringsFilePath = "$path/src/main/res/values/strings.xml".also {
+            println("Project default strings path: $it")
+        }
+        val uploadStringsFileContent: String
+        try {
+            uploadStringsFileContent = File(defaultStringsFilePath).readText()
+        } catch (e: FileNotFoundException) {
+            println("Please input a valid path. No strings.xml file found at $defaultStringsFilePath")
+            exitProcess(0)
+        }
+
+        languageCodeArray.map { languageCode ->
+            launch(Dispatchers.IO) {
+                println("\n...")
+                val translation =
+                    requestTranslation(
+                        uploadStringsFileContent,
+                        languageMap[languageCode] ?: "",
+                        openAiAuthToken
+                    ).run {
+                        this?.let {
+                            parseTranslation(this)
+                        }
                     }
+                println("Translation in ${languageMap[languageCode]}:\n$translation")
+                translation?.let { value ->
+                    writeTranslationToFile(path, languageCode, value)
                 }
-            println("Translation in ${languageMap[languageCode]}:\n$translation")
-            translation?.let { value ->
-                writeTranslationToFile(languageCode, value)
             }
         }
+
     }
 }
 
 private fun requestTranslation(content: String, targetLanguage: String, apiKey: String): String? {
-    val prompt = "Translate the following strings.xml file of an Android App into language: $targetLanguage. " +
-            "\nKeep the original value for elements with attribute 'translatable=\"false\"'." +
-            " \n$content"
+    val prompt =
+        "Translate the following strings.xml file of an Android App into language: $targetLanguage. " +
+                "\nKeep the original value for elements with attribute 'translatable=\"false\"'." +
+                " \n$content"
 
     val body = jacksonObjectMapper().writeValueAsString(
         GptRequest(
@@ -166,8 +177,8 @@ private fun parseTranslation(response: String): String? {
     return parsedResponse
 }
 
-private fun writeTranslationToFile(languageCode: String, translationText: String) {
-    val filePath = "$projectPath/src/main/res/values-$languageCode/strings.xml"
+private fun writeTranslationToFile(path:String, languageCode: String, translationText: String) {
+    val filePath = "$path/src/main/res/values-$languageCode/strings.xml"
     val file = File(filePath)
 
     try {
@@ -185,7 +196,8 @@ private val httpClient = OkHttpClient.Builder()
     .writeTimeout(Duration.ofSeconds(120))
     .readTimeout(Duration.ofSeconds(60))
     .build()
-private lateinit var projectPath: String
+
+private lateinit var projectPathList: MutableList<String>
 private const val DEFAULT_LANGUAGE_CODES = "de,fr,it,es,pt"
 private const val KEY_CACHED_PROJECT_PATH = "PROJECT_PATH_KEY"
 private const val KEY_CACHED_TRANSLATE_LANGUAGES = "TRANSLATE_LANGUAGES_KEY"
